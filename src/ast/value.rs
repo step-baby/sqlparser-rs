@@ -20,7 +20,7 @@ use bigdecimal::BigDecimal;
 use serde::{Deserialize, Serialize};
 
 /// Primitive SQL values such as number and string
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Value {
     /// Numeric literal
@@ -66,7 +66,7 @@ impl fmt::Display for Value {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum DateTimeField {
     Year,
@@ -91,6 +91,8 @@ pub enum DateTimeField {
     Millennium,
     Millisecond,
     Milliseconds,
+    Nanosecond,
+    Nanoseconds,
     Quarter,
     Timezone,
     TimezoneHour,
@@ -123,6 +125,8 @@ impl fmt::Display for DateTimeField {
             DateTimeField::Millennium => "MILLENNIUM",
             DateTimeField::Millisecond => "MILLISECOND",
             DateTimeField::Milliseconds => "MILLISECONDS",
+            DateTimeField::Nanosecond => "NANOSECOND",
+            DateTimeField::Nanoseconds => "NANOSECONDS",
             DateTimeField::Quarter => "QUARTER",
             DateTimeField::Timezone => "TIMEZONE",
             DateTimeField::TimezoneHour => "TIMEZONE_HOUR",
@@ -192,7 +196,7 @@ pub fn escape_escaped_string(s: &str) -> EscapeEscapedStringLiteral<'_> {
     EscapeEscapedStringLiteral(s)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TrimWhereField {
     Both,

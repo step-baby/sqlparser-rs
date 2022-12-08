@@ -14,14 +14,14 @@
 //! Test SQL syntax specific to Snowflake. The parser based on the
 //! generic dialect is also tested (on the inputs it can handle).
 
-#[macro_use]
-mod test_utils;
-use test_utils::*;
-
 use sqlparser::ast::*;
 use sqlparser::dialect::{GenericDialect, SnowflakeDialect};
 use sqlparser::parser::ParserError;
 use sqlparser::tokenizer::*;
+use test_utils::*;
+
+#[macro_use]
+mod test_utils;
 
 #[test]
 fn test_snowflake_create_table() {
@@ -165,6 +165,28 @@ fn parse_json_using_colon() {
             left: Box::new(Expr::Identifier(Ident::new("a"))),
             operator: JsonOperator::Colon,
             right: Box::new(Expr::Value(Value::UnQuotedString("b".to_string()))),
+        }),
+        select.projection[0]
+    );
+
+    let sql = "SELECT a:type FROM t";
+    let select = snowflake().verified_only_select(sql);
+    assert_eq!(
+        SelectItem::UnnamedExpr(Expr::JsonAccess {
+            left: Box::new(Expr::Identifier(Ident::new("a"))),
+            operator: JsonOperator::Colon,
+            right: Box::new(Expr::Value(Value::UnQuotedString("type".to_string()))),
+        }),
+        select.projection[0]
+    );
+
+    let sql = "SELECT a:location FROM t";
+    let select = snowflake().verified_only_select(sql);
+    assert_eq!(
+        SelectItem::UnnamedExpr(Expr::JsonAccess {
+            left: Box::new(Expr::Identifier(Ident::new("a"))),
+            operator: JsonOperator::Colon,
+            right: Box::new(Expr::Value(Value::UnQuotedString("location".to_string()))),
         }),
         select.projection[0]
     );
@@ -363,4 +385,74 @@ fn snowflake_and_generic() -> TestedDialects {
     TestedDialects {
         dialects: vec![Box::new(SnowflakeDialect {}), Box::new(GenericDialect {})],
     }
+}
+
+#[test]
+fn test_select_wildcard_with_exclude() {
+    match snowflake_and_generic().verified_stmt("SELECT * EXCLUDE (col_a) FROM data") {
+        Statement::Query(query) => match *query.body {
+            SetExpr::Select(select) => match &select.projection[0] {
+                SelectItem::Wildcard(WildcardAdditionalOptions {
+                    opt_exclude: Some(exclude),
+                    ..
+                }) => {
+                    assert_eq!(
+                        *exclude,
+                        ExcludeSelectItem::Multiple(vec![Ident::new("col_a")])
+                    )
+                }
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
+        },
+        _ => unreachable!(),
+    };
+
+    match snowflake_and_generic()
+        .verified_stmt("SELECT name.* EXCLUDE department_id FROM employee_table")
+    {
+        Statement::Query(query) => match *query.body {
+            SetExpr::Select(select) => match &select.projection[0] {
+                SelectItem::QualifiedWildcard(
+                    _,
+                    WildcardAdditionalOptions {
+                        opt_exclude: Some(exclude),
+                        ..
+                    },
+                ) => {
+                    assert_eq!(
+                        *exclude,
+                        ExcludeSelectItem::Single(Ident::new("department_id"))
+                    )
+                }
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
+        },
+        _ => unreachable!(),
+    };
+
+    match snowflake_and_generic()
+        .verified_stmt("SELECT * EXCLUDE (department_id, employee_id) FROM employee_table")
+    {
+        Statement::Query(query) => match *query.body {
+            SetExpr::Select(select) => match &select.projection[0] {
+                SelectItem::Wildcard(WildcardAdditionalOptions {
+                    opt_exclude: Some(exclude),
+                    ..
+                }) => {
+                    assert_eq!(
+                        *exclude,
+                        ExcludeSelectItem::Multiple(vec![
+                            Ident::new("department_id"),
+                            Ident::new("employee_id")
+                        ])
+                    )
+                }
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
+        },
+        _ => unreachable!(),
+    };
 }
